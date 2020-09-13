@@ -129,4 +129,25 @@ TEST_SUITE("LambdaSubscription") {
             disposable.unsubscribe();
         }
     }
+
+    TEST_CASE("Subscribe when notify"){
+        LambdaSubscription subscription;
+        SUBCASE("Force to realloc of subscriptors in the middle of process"){
+            int counter = 0;
+            const int addedCount = 20;
+            std::vector<LambdaSubscription::Unsubscriber> disposable;
+            auto callback = [&](){ ++counter; };
+            auto callbackWhichMakesSubscription = [&](){
+                ++counter;
+                for(int i=0; i<addedCount; ++i)
+                    disposable.push_back(subscription.subscribe(callback));
+            };
+            disposable.push_back(subscription.subscribe(callbackWhichMakesSubscription));
+            disposable.push_back(subscription.subscribe(callback));
+            int expectedCount = disposable.size();
+            subscription.notifyAll();
+            CHECK_EQ(expectedCount, counter);
+            REQUIRE_EQ(expectedCount + addedCount, disposable.size());
+        }
+    }
 }
