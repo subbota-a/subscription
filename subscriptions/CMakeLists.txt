@@ -1,0 +1,1 @@
+add_library(lambda_subscription STATIC LambdaSubscription.cpp LambdaSubscription.h)
