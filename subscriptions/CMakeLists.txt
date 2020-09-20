@@ -1,1 +1,3 @@
-add_library(lambda_subscription STATIC LambdaSubscription.cpp LambdaSubscription.h)
+add_library(subscriptions STATIC
+        LambdaSubscription.cpp LambdaSubscription.h
+        ClassicSubscription.cpp ClassicSubscription.h)

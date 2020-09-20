@@ -1,29 +1,39 @@
 #include "subscriptions/LambdaSubscription.h"
+#include "subscriptions/ClassicSubscription.h"
 #include <string>
 #include <iostream>
 
 // casual listener interface
-struct IObserver
+struct IOnePropertyListener
 {
+    virtual ~IOnePropertyListener() = default;
+
     virtual void onPropertyChanged() = 0;
 };
 
+struct IManyPropertiesListener{
+    virtual ~IManyPropertiesListener() = default;
+
+    virtual void onAppleChanged() = 0;
+    virtual void onPearChanged() = 0;
+};
+
 // example of observable with mixed type of subscription
-class Observable
+class Provider
 {
 public:
     template<class Func>
-    [[nodiscard]] LambdaSubscription::Unsubscriber subscribeOnMyProperty(Func func)
+    [[nodiscard]] LambdaSubscription::Disposable subscribeOnMyPropertyByLambda(Func func)
     {
         return subscription.subscribe(func);
     }
 
-    [[nodiscard]] LambdaSubscription::Unsubscriber subscribeOnRawPointer(IObserver *observer)
+    [[nodiscard]] LambdaSubscription::Disposable subscribeOnMyPropertyByRawPointer(IOnePropertyListener *observer)
     {
         return subscription.subscribe([observer]() { observer->onPropertyChanged(); });
     }
 
-    [[nodiscard]] LambdaSubscription::Unsubscriber subscribeOnWeakPtr(std::weak_ptr<IObserver> weak_observer)
+    [[nodiscard]] LambdaSubscription::Disposable subscribeOnMyPropertyByWeakPtr(std::weak_ptr<IOnePropertyListener> weak_observer)
     {
         return subscription.subscribe(
                 [weak_observer = std::move(weak_observer)]()
@@ -39,31 +49,56 @@ public:
     {
         if (value != myProperty_) {
             myProperty_ = value;
-            notify();
+            notifyMyPropertyChanged();
         }
     }
 
-    void notify()
+    void notifyMyPropertyChanged()
     {
         subscription.notifyAll();
     }
 
+    int apple() const { return apple_; }
+    void setApple(int value) {
+        apple_ = value;
+        notifyAppleChanged();
+    }
+
+    int pear() const { return pear_; }
+    void setPear(int value) {
+        pear_ = value;
+        notifyPearChanged();
+    }
+
+    ClassicSubscription<IManyPropertiesListener>::Disposable subscribeOnManyProperties(IManyPropertiesListener* listener){
+        return classicSubscription.subscribe(listener);
+    }
+private:
+    void notifyAppleChanged(){
+        classicSubscription.notifyAll(&IManyPropertiesListener::onAppleChanged);
+    }
+    void notifyPearChanged(){
+        classicSubscription.notifyAll(&IManyPropertiesListener::onPearChanged);
+    }
 private:
     LambdaSubscription subscription;
+    ClassicSubscription<IManyPropertiesListener> classicSubscription;
     int myProperty_ = 0;
+    int apple_ = 0;
+    int pear_ = 0;
 };
 
-class ObserverByWeakPtr : public std::enable_shared_from_this<ObserverByWeakPtr>, public IObserver
+class ObserverByWeakPtr : public std::enable_shared_from_this<ObserverByWeakPtr>, public IOnePropertyListener
 {
 public:
-    ObserverByWeakPtr(Observable &observable)
+    ObserverByWeakPtr(Provider &observable)
             : observable_(observable)
     {
     }
 
     void init()
     {
-        disposable = observable_.subscribeOnWeakPtr(weak_from_this());
+        disposable = observable_.subscribeOnMyPropertyByWeakPtr(weak_from_this());
     }
 
 private:
@@ -73,17 +108,17 @@ private:
     }
 
 private:
-    Observable &observable_;
-    LambdaSubscription::Unsubscriber disposable;
+    Provider &observable_;
+    LambdaSubscription::Disposable disposable;
 };
 
-class ObserverByRawInterfacePointer : public IObserver
+class ObserverByRawInterfacePointer : public IOnePropertyListener
 {
 public:
-    ObserverByRawInterfacePointer(Observable &observable)
-            : observable_(observable)
+    ObserverByRawInterfacePointer(Provider &observable)
+        : observable_(observable)
     {
-        disposable = observable.subscribeOnRawPointer(this);
+        disposable = observable.subscribeOnMyPropertyByRawPointer(this);
     }
 
 private:
@@ -93,17 +128,17 @@ private:
     }
 
 private:
-    Observable &observable_;
-    LambdaSubscription::Unsubscriber disposable;
+    Provider &observable_;
+    LambdaSubscription::Disposable disposable;
 };
 
 class ObserverByLambda
 {
 public:
-    ObserverByLambda(Observable &observable)
+    ObserverByLambda(Provider &observable)
             : observable_(observable)
     {
-        disposable = observable_.subscribeOnMyProperty([this]() { onPropertyChanged(); });
+        disposable = observable_.subscribeOnMyPropertyByLambda([this]() { onPropertyChanged(); });
     }
 
 private:
@@ -113,24 +148,48 @@ private:
     }
 
 private:
-    Observable &observable_;
-    LambdaSubscription::Unsubscriber disposable;
+    Provider &observable_;
+    LambdaSubscription::Disposable disposable;
+};
+
+class ManyPropertiesListener : public IManyPropertiesListener{
+public:
+    ManyPropertiesListener(Provider& provider)
+        : provider_(provider)
+        , disposable_(provider.subscribeOnManyProperties(this))
+    {}
+    void onAppleChanged() override{
+        std::cout << "onAppleChanged(" << provider_.apple() << ")\n";
+    }
+    void onPearChanged() override{
+        std::cout << "onPearChanged(" << provider_.pear() << ")\n";
+    }
+
+private:
+    Provider& provider_;
+    ClassicSubscription<IManyPropertiesListener>::Disposable disposable_;
 };
 
 int main()
 {
-    Observable observable;
+    Provider provider;
     {
-        auto observerByWeakPtr = std::make_shared<ObserverByWeakPtr>(observable);
+        auto observerByWeakPtr = std::make_shared<ObserverByWeakPtr>(provider);
         observerByWeakPtr->init();
 
-        ObserverByRawInterfacePointer observerByRawInterfacePointer(observable);
+        ObserverByRawInterfacePointer observerByRawInterfacePointer(provider);
 
-        ObserverByLambda observerByLambda(observable);
+        ObserverByLambda observerByLambda(provider);
 
-        observable.setMyProperty(10);
+        ManyPropertiesListener manyPropertiesListener(provider);
+
+        provider.setMyProperty(10);
+        provider.setApple(15);
+        provider.setPear(20);
     }
-    observable.setMyProperty(30);
+    provider.setMyProperty(25);
+    provider.setApple(30);
+    provider.setPear(35);
 
     return 0;
 }

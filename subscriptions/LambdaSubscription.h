@@ -16,14 +16,15 @@ class LambdaSubscription final
             Identity()
                     : pointer_(nullptr) {}
 
-            Identity(void *pointer)
+            explicit Identity(void* pointer)
                     : pointer_(pointer) {}
 
-            bool operator==(const Identity &other) const { return pointer_ == other.pointer_; }
-            bool operator!=(const Identity &other) const { return !(*this == other); }
+            bool operator==(const Identity& other) const { return pointer_ == other.pointer_; }
+
+            bool operator!=(const Identity& other) const { return !(*this == other); }
 
         private:
-            void *pointer_;
+            void* pointer_;
         };
 
         template<class Func>
@@ -44,7 +45,7 @@ class LambdaSubscription final
             invoker_.reset();
         }
 
-        [[nodiscard]] Identity identity() const { return invoker_.get(); }
+        [[nodiscard]] Identity identity() const { return Identity(invoker_.get()); }
 
     private:
         struct Base
@@ -73,48 +74,37 @@ class LambdaSubscription final
     };
 
 public:
-    class Unsubscriber final
+    class Disposable final
     {
     public:
-        Unsubscriber()
+        Disposable()
                 : identity_(nullptr) {}
 
-        ~Unsubscriber()
+        ~Disposable()
         {
-            unsubscribe();
+            dispose();
         }
 
-        Unsubscriber(const Unsubscriber &) = delete;
+        Disposable(const Disposable&) = delete;
 
-        Unsubscriber &operator=(const Unsubscriber &) = delete;
+        Disposable& operator=(const Disposable&) = delete;
 
-        Unsubscriber(Unsubscriber &&other) noexcept
+        Disposable(Disposable&& other) noexcept
                 : identity_(nullptr)
         {
             swap(*this, other);
         }
 
-        Unsubscriber &operator=(Unsubscriber &&other) noexcept
+        Disposable& operator=(Disposable&& other) noexcept
         {
-            unsubscribe();
-            swap(*this, other);
+            Disposable disposable(std::move(other));
+            swap(*this, disposable);
             return *this;
         }
 
-        void unsubscribe() noexcept
-        {
-            if (auto lock = callbacks_.lock()) {
-                auto it = std::find_if(
-                        lock->begin(), lock->end(),
-                        [id = identity_](IdentityCallable &c) { return c.identity() == id; });
-                assert(it != lock->end());
-                it->release();
-            }
-            callbacks_.reset();
-            identity_ = nullptr;
-        }
+        void dispose() noexcept;
 
-        friend void swap(Unsubscriber &a, Unsubscriber &b)
+        friend void swap(Disposable& a, Disposable& b)
         {
             std::swap(a.callbacks_, b.callbacks_);
             std::swap(a.identity_, b.identity_);
@@ -123,7 +113,7 @@ public:
     private:
         friend class LambdaSubscription;
 
-        Unsubscriber(
+        Disposable(
                 std::weak_ptr<std::vector<IdentityCallable>> callbacks, IdentityCallable::Identity identity);
 
         std::weak_ptr<std::vector<IdentityCallable>> callbacks_;
@@ -131,10 +121,10 @@ public:
     };
 
     template<class Callback>
-    [[nodiscard]] Unsubscriber subscribe(Callback callback)
+    [[nodiscard]] Disposable subscribe(Callback callback)
     {
-        IdentityCallable &c = callbacks_->emplace_back(std::move(callback));
-        return Unsubscriber(callbacks_, c.identity());
+        IdentityCallable& c = callbacks_->emplace_back(std::move(callback));
+        return Disposable(callbacks_, c.identity());
     }
 
     void notifyAll();

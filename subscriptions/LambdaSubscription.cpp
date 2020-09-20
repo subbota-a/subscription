@@ -1,10 +1,23 @@
 #include "LambdaSubscription.h"
 
-LambdaSubscription::Unsubscriber::Unsubscriber(
+LambdaSubscription::Disposable::Disposable(
         std::weak_ptr<std::vector<IdentityCallable>> callbacks, IdentityCallable::Identity identity)
         : callbacks_(std::move(callbacks))
         , identity_(identity)
 {
+}
+
+void LambdaSubscription::Disposable::dispose() noexcept
+{
+    if (auto lock = callbacks_.lock()) {
+        auto it = std::find_if(
+                lock->begin(), lock->end(),
+                [id = identity_](IdentityCallable &c) { return c.identity() == id; });
+        assert(it != lock->end());
+        it->release();
+    }
+    callbacks_.reset();
+    identity_ = {};
 }
 
 

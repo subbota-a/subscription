@@ -42,7 +42,7 @@ TEST_SUITE("LambdaSubscription") {
             };
             SUBCASE("if only one subscriber") {
                 auto disposable = subscription.subscribe(callback);
-                disposable.unsubscribe();
+                disposable.dispose();
                 subscription.notifyAll();
                 REQUIRE_EQ(0, invoke_count);
             };
@@ -51,7 +51,7 @@ TEST_SUITE("LambdaSubscription") {
                 auto disposable1 = subscription.subscribe(callback);
                 auto disposable2 = subscription.subscribe(callback);
                 auto disposable3 = subscription.subscribe(callback);
-                disposable1.unsubscribe();
+                disposable1.dispose();
                 subscription.notifyAll();
                 REQUIRE_EQ(2, invoke_count);
             };
@@ -60,7 +60,7 @@ TEST_SUITE("LambdaSubscription") {
                 auto disposable1 = subscription.subscribe(callback);
                 auto disposable2 = subscription.subscribe(callback);
                 auto disposable3 = subscription.subscribe(callback);
-                disposable2.unsubscribe();
+                disposable2.dispose();
                 subscription.notifyAll();
                 REQUIRE_EQ(2, invoke_count);
             };
@@ -69,7 +69,7 @@ TEST_SUITE("LambdaSubscription") {
                 auto disposable1 = subscription.subscribe(callback);
                 auto disposable2 = subscription.subscribe(callback);
                 auto disposable3 = subscription.subscribe(callback);
-                disposable3.unsubscribe();
+                disposable3.dispose();
                 subscription.notifyAll();
                 REQUIRE_EQ(2, invoke_count);
             };
@@ -77,11 +77,11 @@ TEST_SUITE("LambdaSubscription") {
         };
 
         SUBCASE("unsubscribtion  during a call") {
-            LambdaSubscription::Unsubscriber disposable;
+            LambdaSubscription::Disposable disposable;
             auto auto_dispose_callback = [&]()
             {
                 ++invoke_count;
-                disposable.unsubscribe();
+                disposable.dispose();
             };
             SUBCASE("if oneself") {
                 disposable = subscription.subscribe(auto_dispose_callback);
@@ -116,17 +116,17 @@ TEST_SUITE("LambdaSubscription") {
         SUBCASE("Unsubscribe twice") {
             LambdaSubscription subscription;
             auto disposable = subscription.subscribe([]() {});
-            disposable.unsubscribe();
-            disposable.unsubscribe();
+            disposable.dispose();
+            disposable.dispose();
         }
 
         SUBCASE("Unsubscribe when subscription has passed away") {
-            LambdaSubscription::Unsubscriber disposable;
+            LambdaSubscription::Disposable disposable;
             {
                 LambdaSubscription subscription;
                 disposable = subscription.subscribe([]() {});
             }
-            disposable.unsubscribe();
+            disposable.dispose();
         }
     }
 
@@ -135,7 +135,7 @@ TEST_SUITE("LambdaSubscription") {
         SUBCASE("Force to realloc of subscriptors in the middle of process"){
             int counter = 0;
             const int addedCount = 20;
-            std::vector<LambdaSubscription::Unsubscriber> disposable;
+            std::vector<LambdaSubscription::Disposable> disposable;
             auto callback = [&](){ ++counter; };
             auto callbackWhichMakesSubscription = [&](){
                 ++counter;
