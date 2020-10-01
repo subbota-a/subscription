@@ -51,7 +51,7 @@ public:
     };
 
 protected:
-    Disposable subscribe(void* p);
+    [[nodiscard]] Disposable subscribe(void* p);
 
     void clean_released();
 
@@ -63,7 +63,7 @@ template<class Interface>
 class ClassicSubscription final : public ClassicSubscriptionBase
 {
 public:
-    Disposable subscribe(Interface* anInterface)
+    [[nodiscard]] Disposable subscribe(Interface* anInterface)
     {
         return ClassicSubscriptionBase::subscribe(anInterface);
     }
