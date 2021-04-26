@@ -15,6 +15,7 @@ struct IManyPropertiesListener
 };
 
 using namespace fakeit;
+using namespace subscriptions;
 
 TEST_SUITE ("ClassicSubscription") {
     TEST_CASE ("Empty constructor")
@@ -60,7 +61,7 @@ TEST_SUITE ("ClassicSubscription") {
     {
         ClassicSubscription<IManyPropertiesListener> subscription;
         std::vector<Mock<IManyPropertiesListener>> listeners(3);
-        std::vector<ClassicSubscriptionBase::Disposable> disposables;
+        std::vector<Disposable> disposables;
         for(auto& mock : listeners)
             disposables.push_back(subscription.subscribe(&mock.get()));
 
@@ -93,7 +94,7 @@ TEST_SUITE ("ClassicSubscription") {
         SUBCASE("Add listener in the middle of notification"){
             std::vector<Mock<IManyPropertiesListener>> new_listener(listeners.size());
             int new_listener_counter = 0;
-            std::vector<ClassicSubscriptionBase::Disposable> new_disposables;
+            std::vector<Disposable> new_disposables;
 
             for(auto& mock : listeners){
                 When(Method(mock, onYChanged)).AlwaysDo([&](){
@@ -115,7 +116,7 @@ TEST_SUITE ("ClassicSubscription") {
         SUBCASE("Remove listener in the middle of notification"){
             std::vector<Mock<IManyPropertiesListener>> new_listener(listeners.size());
             int new_listener_counter = 0;
-            std::vector<ClassicSubscriptionBase::Disposable> new_disposables;
+            std::vector<Disposable> new_disposables;
 
             for(size_t i=0; i< listeners.size(); ++i){
                 When(Method(listeners[i], onYChanged))
